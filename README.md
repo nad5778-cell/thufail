@@ -34,3 +34,24 @@ given reconstruction-error percentile (default: top 5%).
 - `thufail/model.py` — `AutoencoderAnomalyDetector` (encoder/decoder MLP)
 - `thufail/train.py` — training loop, saves model + scaler
 - `thufail/detect.py` — loads a trained model, scores new data
+
+## Combined ID-rule + ML anomaly checker
+
+`thufail/checker.py` combines rule-based national ID validation with the
+autoencoder anomaly detector, for a single CLI you can point at a CSV or
+XLSX export:
+
+```bash
+python -m thufail.checker data.xlsx \
+  --id-column NATIONAL_IDENTITY \
+  --sheet "Sheet1" \
+  --prefix 784 \
+  --length 15 \
+  --output-csv flagged.csv
+```
+
+Rule checks (`thufail/id_rules.py`) flag: missing values, placeholder values
+(e.g. `xxxxx`), non-numeric characters, wrong digit length, wrong prefix, and
+duplicate IDs. The ML side trains the autoencoder on the fly over all numeric
+columns and flags the top 5% by reconstruction error. A row is flagged if
+either check fires; results and reasons are written to `--output-csv`.
