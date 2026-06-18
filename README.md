@@ -55,3 +55,24 @@ Rule checks (`thufail/id_rules.py`) flag: missing values, placeholder values
 duplicate IDs. The ML side trains the autoencoder on the fly over all numeric
 columns and flags the top 5% by reconstruction error. A row is flagged if
 either check fires; results and reasons are written to `--output-csv`.
+
+### Querying Oracle directly
+
+Instead of a file, point the checker at a live query:
+
+```bash
+export ORACLE_USER=myuser
+export ORACLE_PASSWORD=mypassword
+export ORACLE_DSN=myhost:1521/myservice   # or a TNS alias, with TNS_ADMIN set
+
+python -m thufail.checker --query "SELECT * FROM members" \
+  --id-column NATIONAL_IDENTITY \
+  --output-csv flagged.csv
+```
+
+This uses [`python-oracledb`](https://python-oracledb.readthedocs.io/) (thin
+mode, no Oracle Instant Client install required for host:port/service_name
+DSNs). Credentials are read only from environment variables — never pass
+them as CLI arguments or commit them to a `.env` file that's tracked by git.
+Run this from a machine/network that can reach your Oracle instance (this
+sandboxed session cannot).

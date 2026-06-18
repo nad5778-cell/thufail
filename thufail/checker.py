@@ -8,7 +8,11 @@ from thufail.id_rules import check_national_id
 from thufail.model import AutoencoderAnomalyDetector
 
 
-def load_table(path: str, sheet: str | int = 0) -> pd.DataFrame:
+def load_table(path: str | None = None, sheet: str | int = 0, query: str | None = None) -> pd.DataFrame:
+    if query:
+        from thufail.db import fetch_oracle
+
+        return fetch_oracle(query)
     if path.lower().endswith((".xlsx", ".xls")):
         return pd.read_excel(path, sheet_name=sheet)
     return pd.read_csv(path)
@@ -61,15 +65,16 @@ def run_ml_check(df: pd.DataFrame, epochs: int = 30, hidden_dim: int = 32, laten
 
 
 def check(
-    path: str,
+    path: str | None,
     id_column: str,
     sheet: str | int = 0,
+    query: str | None = None,
     prefix: str = "784",
     length: int = 15,
     epochs: int = 30,
     output_csv: str | None = None,
 ) -> pd.DataFrame:
-    df = load_table(path, sheet)
+    df = load_table(path, sheet, query)
     df = run_id_checks(df, id_column, prefix, length)
     df = run_ml_check(df, epochs)
 
@@ -91,9 +96,15 @@ def main():
     parser = argparse.ArgumentParser(
         description="Combined rule-based + ML anomaly checker for enterprise tabular data."
     )
-    parser.add_argument("path", help="Path to CSV or XLSX file")
+    parser.add_argument("path", nargs="?", default=None, help="Path to CSV or XLSX file (omit when using --query)")
     parser.add_argument("--id-column", required=True, help="Column name holding the national ID")
     parser.add_argument("--sheet", default=0, help="Sheet name or index (xlsx only)")
+    parser.add_argument(
+        "--query",
+        default=None,
+        help="SQL query to run against Oracle instead of reading a file. "
+        "Requires ORACLE_USER, ORACLE_PASSWORD, ORACLE_DSN env vars.",
+    )
     parser.add_argument("--prefix", default="784", help="Expected national ID prefix")
     parser.add_argument("--length", type=int, default=15, help="Expected national ID digit length")
     parser.add_argument("--epochs", type=int, default=30, help="Autoencoder training epochs")
@@ -106,10 +117,14 @@ def main():
     except (TypeError, ValueError):
         pass
 
+    if not args.path and not args.query:
+        parser.error("provide either a path or --query")
+
     check(
         args.path,
         id_column=args.id_column,
         sheet=sheet,
+        query=args.query,
         prefix=args.prefix,
         length=args.length,
         epochs=args.epochs,
