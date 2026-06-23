@@ -25,7 +25,7 @@ ORACLE_CONFIG = {
 }
 
 QUERY = (
-    "SELECT NATIONAL_IDENTITY FROM RPLMEMBER "
+    "SELECT NATIONAL_IDENTITY, FIRST_NAME FROM RPLMEMBER "
     "WHERE INSURANCE_COMPANY_NUMBER = 501"
 )
 
@@ -38,14 +38,34 @@ def fetch_query_result(config: dict, query: str) -> pd.DataFrame:
         return pd.read_sql(query, conn)
 
 
-def extract_violation_flags(df: pd.DataFrame, column: str = "NATIONAL_IDENTITY") -> pd.DataFrame:
-    """Flag (1=violation, 0=ok) each NATIONAL_IDENTITY rule per row."""
+def extract_violation_flags(
+    df: pd.DataFrame,
+    column: str = "NATIONAL_IDENTITY",
+    name_column: str = "FIRST_NAME",
+) -> pd.DataFrame:
+    """Flag (1=violation, 0=ok) each NATIONAL_IDENTITY rule per row.
+
+    A duplicate NATIONAL_IDENTITY is only treated as a violation if the
+    records sharing it disagree on FIRST_NAME. Same ID + same first name
+    across all matching rows is a valid test case (e.g. re-issued/renewal
+    records for the same person), not an anomaly.
+    """
     raw = df[column]
     values = raw.astype(str).str.strip()
 
     is_empty = raw.isna() | (values == "")
     bad_format = ~values.str.match(NATIONAL_IDENTITY_PATTERN) & ~is_empty
-    is_duplicate = values.duplicated(keep=False) & ~is_empty
+
+    is_dup_id = values.duplicated(keep=False) & ~is_empty
+    if name_column in df.columns:
+        names = df[name_column].astype(str).str.strip().str.lower()
+        same_name_per_id = values.groupby(values).apply(
+            lambda v: names.loc[v.index].nunique() <= 1
+        )
+        consistent_name = values.map(same_name_per_id)
+        is_duplicate = is_dup_id & ~consistent_name
+    else:
+        is_duplicate = is_dup_id
 
     return pd.DataFrame({
         "is_empty": is_empty.astype(float),
