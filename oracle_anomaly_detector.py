@@ -60,9 +60,9 @@ def extract_violation_flags(
     if name_column in df.columns:
         names = df[name_column].astype(str).str.strip().str.lower()
         same_name_per_id = values.groupby(values).apply(
-            lambda v: names.loc[v.index].nunique() <= 1
+            lambda v: bool(names.loc[v.index].nunique() <= 1)
         )
-        consistent_name = values.map(same_name_per_id)
+        consistent_name = values.map(same_name_per_id).astype(bool)
         is_duplicate = is_dup_id & ~consistent_name
     else:
         is_duplicate = is_dup_id
