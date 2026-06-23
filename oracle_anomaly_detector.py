@@ -19,7 +19,10 @@ ORACLE_CONFIG = {
     "dsn": "host:port/service_name",
 }
 
-QUERY = "SELECT * FROM your_table"
+QUERY = (
+    "SELECT NATIONAL_IDENTITY FROM RPLMEMBER "
+    "WHERE INSURANCE_COMPANY_NUMBER = 501"
+)
 
 ZSCORE_THRESHOLD = 3.0
 ANOMALY_SCORE_THRESHOLD = 0.5
@@ -30,11 +33,19 @@ def fetch_query_result(config: dict, query: str) -> pd.DataFrame:
         return pd.read_sql(query, conn)
 
 
+def extract_id_features(df: pd.DataFrame, column: str = "NATIONAL_IDENTITY") -> pd.DataFrame:
+    """Derive numeric features from a text ID column for anomaly scoring."""
+    values = df[column].astype(str)
+    return pd.DataFrame({
+        "length": values.str.len(),
+        "non_digit_count": values.str.count(r"[^0-9]"),
+    })
+
+
 def compute_zscores(df: pd.DataFrame) -> pd.DataFrame:
-    numeric_df = df.select_dtypes(include=[np.number])
-    mean = numeric_df.mean()
-    std = numeric_df.std().replace(0, 1)
-    return (numeric_df - mean) / std
+    mean = df.mean()
+    std = df.std().replace(0, 1)
+    return (df - mean) / std
 
 
 class AnomalyScorer(nn.Module):
@@ -80,7 +91,8 @@ def score_anomalies(zscores: pd.DataFrame) -> np.ndarray:
 
 
 def detect_anomalies(df: pd.DataFrame) -> pd.DataFrame:
-    zscores = compute_zscores(df)
+    features = extract_id_features(df)
+    zscores = compute_zscores(features)
     scores = score_anomalies(zscores)
 
     result = df.copy()
