@@ -104,6 +104,10 @@ def extract_pattern_features(df: pd.DataFrame, column: str = "NATIONAL_IDENTITY"
 
     rows = []
     for digits in digits_only:
+        if pd.isna(digits):
+            rows.append([0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+            continue
+        digits = str(digits)
         if len(digits) != 15:
             # Malformed/empty rows already get caught by the rule checks;
             # use neutral feature values so they don't distort training.
