@@ -6,6 +6,8 @@ Usage:
     python oracle_anomaly_detector.py
 """
 
+import re
+
 import oracledb
 import pandas as pd
 import numpy as np
@@ -24,8 +26,10 @@ QUERY = (
     "WHERE INSURANCE_COMPANY_NUMBER = 501"
 )
 
-ZSCORE_THRESHOLD = 3.0
 ANOMALY_SCORE_THRESHOLD = 0.5
+
+# 18 chars total: 783-DDDD-DDDDDDD-D (dashes at positions 4, 9, 17)
+NATIONAL_IDENTITY_PATTERN = re.compile(r"^783-\d{4}-\d{7}-\d$")
 
 
 def fetch_query_result(config: dict, query: str) -> pd.DataFrame:
@@ -33,23 +37,24 @@ def fetch_query_result(config: dict, query: str) -> pd.DataFrame:
         return pd.read_sql(query, conn)
 
 
-def extract_id_features(df: pd.DataFrame, column: str = "NATIONAL_IDENTITY") -> pd.DataFrame:
-    """Derive numeric features from a text ID column for anomaly scoring."""
-    values = df[column].astype(str)
+def extract_violation_flags(df: pd.DataFrame, column: str = "NATIONAL_IDENTITY") -> pd.DataFrame:
+    """Flag (1=violation, 0=ok) each NATIONAL_IDENTITY rule per row."""
+    raw = df[column]
+    values = raw.astype(str).str.strip()
+
+    is_empty = raw.isna() | (values == "")
+    bad_format = ~values.str.match(NATIONAL_IDENTITY_PATTERN) & ~is_empty
+    is_duplicate = values.duplicated(keep=False) & ~is_empty
+
     return pd.DataFrame({
-        "length": values.str.len(),
-        "non_digit_count": values.str.count(r"[^0-9]"),
+        "is_empty": is_empty.astype(float),
+        "bad_format": bad_format.astype(float),
+        "is_duplicate": is_duplicate.astype(float),
     })
 
 
-def compute_zscores(df: pd.DataFrame) -> pd.DataFrame:
-    mean = df.mean()
-    std = df.std().replace(0, 1)
-    return (df - mean) / std
-
-
 class AnomalyScorer(nn.Module):
-    """Combines per-column z-scores into a single anomaly score per row."""
+    """Combines per-rule violation flags into a single anomaly score."""
 
     def __init__(self, num_features: int):
         super().__init__()
@@ -64,14 +69,14 @@ class AnomalyScorer(nn.Module):
         return self.net(x).squeeze(-1)
 
 
-def score_anomalies(zscores: pd.DataFrame) -> np.ndarray:
-    features = torch.tensor(zscores.abs().to_numpy(), dtype=torch.float32)
+def score_anomalies(flags: pd.DataFrame) -> np.ndarray:
+    features = torch.tensor(flags.to_numpy(), dtype=torch.float32)
 
     model = AnomalyScorer(num_features=features.shape[1])
 
-    # Unsupervised heuristic: train the scorer to reproduce a target derived
-    # from the max absolute z-score per row, so high-deviation rows get high scores.
-    target = (features.max(dim=1).values / ZSCORE_THRESHOLD).clamp(max=1.0)
+    # Train the scorer to reproduce an OR over the rule violations, so any
+    # broken rule (empty, bad format, duplicate) pushes the score toward 1.
+    target = features.max(dim=1).values
 
     optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
     loss_fn = nn.MSELoss()
@@ -91,13 +96,18 @@ def score_anomalies(zscores: pd.DataFrame) -> np.ndarray:
 
 
 def detect_anomalies(df: pd.DataFrame) -> pd.DataFrame:
-    features = extract_id_features(df)
-    zscores = compute_zscores(features)
-    scores = score_anomalies(zscores)
+    flags = extract_violation_flags(df)
+    scores = score_anomalies(flags)
 
     result = df.copy()
+    result["is_empty"] = flags["is_empty"].astype(bool)
+    result["bad_format"] = flags["bad_format"].astype(bool)
+    result["is_duplicate"] = flags["is_duplicate"].astype(bool)
     result["anomaly_score"] = scores
-    result["is_anomaly"] = scores >= ANOMALY_SCORE_THRESHOLD
+    result["is_anomaly"] = (
+        result["is_empty"] | result["bad_format"] | result["is_duplicate"]
+        | (scores >= ANOMALY_SCORE_THRESHOLD)
+    )
     return result
 
 
