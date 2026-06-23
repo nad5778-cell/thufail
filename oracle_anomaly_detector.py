@@ -208,6 +208,28 @@ def export_dashboard(result: pd.DataFrame, output_path: str = "anomaly_dashboard
         detail.autofilter(0, 0, n_rows, len(result_sorted.columns) - 1)
         detail.freeze_panes(1, 0)
 
+        # ---- Anomalies-only sheet ----
+        anomalies = result_sorted[result_sorted["is_anomaly"]].reset_index(drop=True)
+        anomalies.to_excel(writer, sheet_name="Anomalies", index=False, startrow=1, header=False)
+        anomaly_sheet = writer.sheets["Anomalies"]
+
+        anomaly_header_fmt = workbook.add_format({"bold": True, "font_color": "#FFFFFF", "bg_color": "#C00000",
+                                                    "align": "center", "valign": "vcenter", "border": 1})
+        for col_idx, col_name in enumerate(anomalies.columns):
+            anomaly_sheet.write(0, col_idx, col_name, anomaly_header_fmt)
+            width = max(14, len(col_name) + 2)
+            anomaly_sheet.set_column(col_idx, col_idx, width)
+
+        n_anomaly_rows = len(anomalies)
+        if n_anomaly_rows:
+            row_fmt = workbook.add_format({"bg_color": "#FDEBEB", "font_color": "#C00000"})
+            anomaly_sheet.conditional_format(1, 0, n_anomaly_rows, len(anomalies.columns) - 1, {
+                "type": "no_errors",
+                "format": row_fmt,
+            })
+            anomaly_sheet.autofilter(0, 0, n_anomaly_rows, len(anomalies.columns) - 1)
+            anomaly_sheet.freeze_panes(1, 0)
+
     print(f"Dashboard written to {output_path}")
 
 
