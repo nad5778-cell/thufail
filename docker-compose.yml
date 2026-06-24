@@ -1,0 +1,20 @@
+services:
+  backend:
+    build: ./backend
+    env_file: backend/.env
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        # Must be reachable from users' browsers — not the docker network
+        # hostname. Override via .env or `VITE_API_BASE_URL=... docker compose build`.
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000}
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
