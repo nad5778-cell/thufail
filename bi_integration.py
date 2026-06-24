@@ -3,19 +3,17 @@ BI reports integration client.
 
 Authenticates against the OAuth2 token endpoint using the client_credentials
 grant, then calls the BI end point with the resulting bearer token.
-
-Required environment variables:
-    BI_ACCESS_TOKEN_URL
-    BI_CLIENT_ID
-    BI_CLIENT_SECRET_KEY
-    BI_END_POINT_URL
 """
 
-import os
 import sys
 from typing import Optional
 
 import requests
+
+BI_ACCESS_TOKEN_URL = "https://bicloud.mrhealthtech.com/ords/montools/oauth/token"
+BI_CLIENT_ID = "WhYOC-x79mgi1J0QEI6T-Q.."
+BI_CLIENT_SECRET_KEY = "6C42jLcCTvzsipYfy9eROA.."
+BI_END_POINT_URL = "https://bicloud.mrhealthtech.com/ords/montools/metlife_ssp_integration/par"
 
 
 def get_access_token(token_url: str, client_id: str, client_secret: str) -> str:
@@ -40,25 +38,9 @@ def call_bi_endpoint(endpoint_url: str, access_token: str, payload: Optional[dic
 
 
 def main() -> int:
-    required_vars = [
-        "BI_ACCESS_TOKEN_URL",
-        "BI_CLIENT_ID",
-        "BI_CLIENT_SECRET_KEY",
-        "BI_END_POINT_URL",
-    ]
-    missing = [v for v in required_vars if not os.environ.get(v)]
-    if missing:
-        print(f"Missing required environment variables: {', '.join(missing)}", file=sys.stderr)
-        return 1
-
-    token_url = os.environ["BI_ACCESS_TOKEN_URL"]
-    client_id = os.environ["BI_CLIENT_ID"]
-    client_secret = os.environ["BI_CLIENT_SECRET_KEY"]
-    endpoint_url = os.environ["BI_END_POINT_URL"]
-
     try:
-        access_token = get_access_token(token_url, client_id, client_secret)
-        result = call_bi_endpoint(endpoint_url, access_token)
+        access_token = get_access_token(BI_ACCESS_TOKEN_URL, BI_CLIENT_ID, BI_CLIENT_SECRET_KEY)
+        result = call_bi_endpoint(BI_END_POINT_URL, access_token)
         print(result)
     except requests.HTTPError as exc:
         print(f"Request failed: {exc}", file=sys.stderr)
