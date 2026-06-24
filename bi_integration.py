@@ -13,6 +13,8 @@ Required environment variables:
 
 import os
 import sys
+from typing import Optional
+
 import requests
 
 
@@ -27,7 +29,7 @@ def get_access_token(token_url: str, client_id: str, client_secret: str) -> str:
     return response.json()["access_token"]
 
 
-def call_bi_endpoint(endpoint_url: str, access_token: str, payload: dict | None = None) -> dict:
+def call_bi_endpoint(endpoint_url: str, access_token: str, payload: Optional[dict] = None) -> dict:
     headers = {
         "Authorization": f"Bearer {access_token}",
         "Content-Type": "application/json",
