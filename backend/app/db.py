@@ -2,6 +2,7 @@ import re
 from contextlib import contextmanager
 
 import oracledb
+import pandas as pd
 
 from app.config import settings
 
@@ -18,6 +19,7 @@ def _validate_identifier(name: str) -> str:
 # fails fast instead of silently enabling SQL injection via f-string interpolation.
 PIC_SUMMARY_VIEW = _validate_identifier(settings.oracle_pic_summary_view)
 PIC_DETAIL_VIEW = _validate_identifier(settings.oracle_pic_detail_view)
+MEMBER_VIEW = _validate_identifier(settings.oracle_member_view)
 
 _pool = oracledb.create_pool(
     user=settings.oracle_user,
@@ -51,3 +53,18 @@ def fetch_all(sql: str, params: dict | None = None) -> list[dict]:
         rows = cursor.fetchall()
         cursor.close()
         return [dict(zip(columns, row)) for row in rows]
+
+
+def fetch_dataframe(sql: str, params: dict | None = None) -> pd.DataFrame:
+    with get_connection() as conn:
+        return pd.read_sql(sql, conn, params=params or {})
+
+
+def fetch_member_national_identity(pic_code: str) -> pd.DataFrame:
+    """NATIONAL_IDENTITY/FIRST_NAME rows for one PIC, for anomaly detection."""
+    sql = f"""
+        SELECT NATIONAL_IDENTITY, FIRST_NAME
+        FROM {MEMBER_VIEW}
+        WHERE INSURANCE_COMPANY_NUMBER = :pic_code
+    """
+    return fetch_dataframe(sql, {"pic_code": pic_code})

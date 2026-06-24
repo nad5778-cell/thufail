@@ -1,6 +1,7 @@
 import { Routes, Route, Link } from "react-router-dom";
 import PicSummaryPage from "./pages/PicSummaryPage";
 import PicDetailPage from "./pages/PicDetailPage";
+import PicAnomaliesPage from "./pages/PicAnomaliesPage";
 
 export default function App() {
   return (
@@ -13,6 +14,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<PicSummaryPage />} />
         <Route path="/pic/:picCode" element={<PicDetailPage />} />
+        <Route path="/pic/:picCode/anomalies" element={<PicAnomaliesPage />} />
       </Routes>
     </div>
   );

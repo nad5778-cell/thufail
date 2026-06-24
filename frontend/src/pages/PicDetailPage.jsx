@@ -32,6 +32,7 @@ export default function PicDetailPage() {
     <div>
       <p><Link to="/">← Back to summary</Link></p>
       <h2>Records for PIC {picCode}</h2>
+      <p><Link to={`/pic/${encodeURIComponent(picCode)}/anomalies`}>Run NATIONAL_IDENTITY anomaly check →</Link></p>
       <table style={{ width: "100%", borderCollapse: "collapse" }}>
         <thead>
           <tr>

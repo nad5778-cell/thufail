@@ -15,3 +15,11 @@ export function getPicSummary() {
 export function getPicRecords(picCode, { limit = 200, offset = 0 } = {}) {
   return get(`/api/pic/${encodeURIComponent(picCode)}/records?limit=${limit}&offset=${offset}`);
 }
+
+export function getNationalIdentityAnomalies(picCode) {
+  return get(`/api/pic/${encodeURIComponent(picCode)}/anomalies/national-identity`);
+}
+
+export function getNationalIdentityAnomaliesDownloadUrl(picCode) {
+  return `${BASE_URL}/api/pic/${encodeURIComponent(picCode)}/anomalies/national-identity.xlsx`;
+}
